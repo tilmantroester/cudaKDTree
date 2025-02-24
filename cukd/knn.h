@@ -20,6 +20,9 @@
 #include "cukd/helpers.h"
 #include "cukd/fcp.h"
 
+#include <thrust/sort.h>
+#include <thrust/functional.h>
+
 // ==================================================================
 // INTERFACE SECTION
 // ==================================================================
@@ -63,6 +66,11 @@ namespace cukd {
     /*! returns ID of i'th found k-nearest data point */
     inline __device__ int   get_pointID(int i) const;
     
+    /*! sort the candidates by distance */
+    inline __device__ void  sort();
+
+    // Need this to read out results
+    enum { num_k = k };
   protected:
     inline __device__ uint64_t encode(float f, int i);
     inline __device__ float decode_dist2(uint64_t v) const;
@@ -70,7 +78,6 @@ namespace cukd {
     /*! storage for k elements; we encode those float:int pairs as a
         single int64 to make reading/writing/swapping faster */
     uint64_t entry[k];
-    enum { num_k = k };
   };
 
   namespace stackBased {
@@ -191,6 +198,40 @@ namespace cukd {
               typename data_traits::point_t queryPoint);
   } // ::cukd::cct
 
+  namespace stackBasedPeriodic {
+    template<
+      /*! type of object to manage the k-nearest objects*/
+      typename CandidateList,
+      /*! type of data in the underlying tree */
+      typename data_t,
+      /*! traits of data in the underlying tree */
+      typename data_traits=default_data_traits<data_t>>
+    inline __device__
+    float knn(CandidateList &result,
+              typename data_traits::point_t queryPoint,
+              const box_t<typename data_traits::point_t> worldBounds,
+              const data_t *d_nodes,
+              int N,
+              const typename data_traits::point_t *periodic_box_size=nullptr);
+  } // ::cukd::stackBasedPeriodic
+
+  namespace stackFreeBoundsTracking {
+    template<
+      /*! type of object to manage the k-nearest objects*/
+      typename CandidateList,
+      /*! type of data in the underlying tree */
+      typename data_t,
+      /*! traits of data in the underlying tree */
+      typename data_traits=default_data_traits<data_t>>
+    inline __device__
+    float knn(CandidateList &result,
+              typename data_traits::point_t queryPoint,
+              const box_t<typename data_traits::point_t> worldBounds,
+              const data_t *d_nodes,
+              int N,
+              const typename data_traits::point_t *periodic_box_size=nullptr);
+  } // ::cukd::stackFreeBoundsTracking
+
 
   
   // ------------------------------------------------------------------
@@ -222,6 +263,8 @@ namespace cukd {
     inline __device__ float processCandidate(int candPrimID, float candDist2);
     inline __device__ float initialCullDist2() const;
     inline __device__ void  push(float dist, int pointID);
+
+    inline __device__ void  sort();
   };
 
   /*! candidate list (see above) that uses a heap to organize the
@@ -248,6 +291,8 @@ namespace cukd {
     inline __device__ float processCandidate(int candPrimID, float candDist2);
     inline __device__ float initialCullDist2() const;
     inline __device__ void  push(float dist, int pointID);
+
+    inline __device__ void  sort();
   };
 
   
@@ -273,7 +318,7 @@ namespace cukd {
   inline __device__
   int CandidateList<k>::get_pointID(int i) const
   { return decode_pointID(entry[i]); }
-    
+
   template<int k>
   inline __device__
   uint64_t CandidateList<k>::encode(float f, int i)
@@ -362,9 +407,13 @@ namespace cukd {
   inline __device__
   float HeapCandidateList<k>::maxRadius2() const
   { return decode_dist2(entry[0]); }
-    
 
-
+  template<int k>
+  inline __device__
+  void HeapCandidateList<k>::sort()
+  {
+    thrust::sort(thrust::device, &entry[0], &entry[k]);
+  }
 
 
   // ------------------------------------------------------------------
@@ -417,7 +466,12 @@ namespace cukd {
   inline __device__
   float FixedCandidateList<k>::maxRadius2() const
   { return decode_dist2(entry[k-1]); }
-    
+
+  template<int k>
+  inline __device__
+  void FixedCandidateList<k>::sort() { /* Fixed list is already sorted. */ }
+
+
   namespace cct {
     template<typename CandidateList,
              typename data_t,
@@ -622,5 +676,43 @@ namespace cukd {
       }
     }
   } // ::cukd::stackBased
+
+  namespace stackBasedPeriodic {
+    template<typename CandidateList,
+             typename data_t,
+             typename data_traits>
+    inline __device__
+    float knn(CandidateList &result,
+              typename data_traits::point_t queryPoint,
+              const box_t<typename data_traits::point_t> worldBounds,
+              const data_t *d_nodes,
+              int N,
+              const typename data_traits::point_t *periodic_box_size)
+    {
+      traverse_stack_based_periodic<CandidateList,data_t,data_traits>
+        (result,queryPoint,worldBounds,d_nodes,N,periodic_box_size);
+      return result.returnValue();
+    }
+  }
+
+  namespace stackFreeBoundsTracking {
+    template<typename CandidateList,
+             typename data_t,
+             typename data_traits>
+    inline __device__
+    float knn(CandidateList &result,
+              typename data_traits::point_t queryPoint,
+              const box_t<typename data_traits::point_t> worldBounds,
+              const data_t *d_nodes,
+              int N,
+              const typename data_traits::point_t *periodic_box_size)
+    {
+      traverse_stack_free_bounds_tracking<CandidateList,data_t,data_traits>
+        (result,queryPoint,worldBounds,d_nodes,N,periodic_box_size);
+      return result.returnValue();
+    }
+  }
+
+  
 
 } // :: cukd

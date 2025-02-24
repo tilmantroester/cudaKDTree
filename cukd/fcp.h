@@ -161,6 +161,40 @@ namespace cukd {
             typename data_traits::point_t queryPoint,
             FcpSearchParams params = FcpSearchParams{});
   } // ::cukd::cct
+
+
+  namespace stackBasedPeriodic {
+    template<typename data_t,
+             typename data_traits=default_data_traits<data_t>>
+    inline __device__
+    int fcp(typename data_traits::point_t queryPoint,
+            /*! the world-space bounding box of all data points */
+            const box_t<typename data_traits::point_t> worldBounds,
+            /*! device(!)-side array of data point, ordered in the
+              right way as produced by buildTree()*/
+            const data_t *dataPoints,
+            /*! number of data points in the tree */
+            int numDataPoints,
+            /*! paramteres to fine-tune the search */
+            FcpSearchParams params = FcpSearchParams{});
+  } // ::cukd::stackBasedPeriodic
+
+
+  namespace stackFreeBoundsTracking {
+    template<typename data_t,
+             typename data_traits=default_data_traits<data_t>>
+    inline __device__
+    int fcp(typename data_traits::point_t queryPoint,
+            /*! the world-space bounding box of all data points */
+            const box_t<typename data_traits::point_t> worldBounds,
+            /*! device(!)-side array of data point, ordered in the
+              right way as produced by buildTree()*/
+            const data_t *dataPoints,
+            /*! number of data points in the tree */
+            int numDataPoints,
+            /*! paramteres to fine-tune the search */
+            FcpSearchParams params = FcpSearchParams{});
+  } // ::cukd::stackFreeBoundsTracking
   
 } // ::cukd
 
@@ -172,6 +206,9 @@ namespace cukd {
 #include "traverse-default-stack-based.h"
 #include "traverse-cct.h"
 #include "traverse-stack-free.h"
+#include "traverse-stack-based-periodic.h"
+#include "traverse-stack-free-bounds-tracking.h"
+
 
 namespace cukd {
 
@@ -250,6 +287,39 @@ namespace cukd {
     result.clear(sqr(params.cutOffRadius));
     traverse_default<FCPResult,data_t,data_traits>
       (result,queryPoint,d_nodes,N);
+    return result.returnValue();
+  }
+
+  template<typename data_t,
+           typename data_traits>
+  inline __device__
+  int stackBasedPeriodic::fcp(typename data_traits::point_t queryPoint,
+               const box_t<typename data_traits::point_t> worldBounds,
+               const data_t *d_nodes,
+               int N,
+               FcpSearchParams params)
+  {
+    FCPResult result;
+    result.clear(sqr(params.cutOffRadius));
+    traverse_stack_based_periodic<FCPResult,data_t,data_traits>
+      (result,queryPoint,worldBounds,d_nodes,N);
+    return result.returnValue();
+  }
+
+  template<typename data_t,
+           typename data_traits>
+  inline __device__
+  int stackFreeBoundsTracking::fcp(
+               typename data_traits::point_t queryPoint,
+               const box_t<typename data_traits::point_t> worldBounds,
+               const data_t *d_nodes,
+               int N,
+               FcpSearchParams params)
+  {
+    FCPResult result;
+    result.clear(sqr(params.cutOffRadius));
+    traverse_stack_free_bounds_tracking<FCPResult,data_t,data_traits>
+      (result,queryPoint,worldBounds,d_nodes,N);
     return result.returnValue();
   }
 

@@ -292,7 +292,34 @@ namespace cukd {
     return sqrt(res);
   }
 
+  // Squared distance for periodic boundary conditions
+  // Dimensions i where box_size[i] <= 0 are treated as
+  // non-periodic.
+  template <typename point_t>
+  inline __both__
+  auto sqrDistance(const point_t& a,
+                   const point_t& b,
+                   const point_t *box_size
+                   )
+  {
+    if(box_size == nullptr)
+      return sqrDistance(a, b);
 
+    enum { num_dims = num_dims_of<point_t>::value };
+    using scalar_t = typename scalar_type_of<point_t>::type;
+    scalar_t res = 0;
+    for(int i=0; i<num_dims; ++i) {
+      auto diff = get_coord(a, i) - get_coord(b, i);
+      const scalar_t length = get_coord(*box_size, i);
+      if(length > 0) 
+      {
+        diff = abs(diff);
+        diff = min(diff, length - diff);
+      }
+      res += sqr(diff);
+    }
+    return res;
+  }
 
 
   template<typename T> struct point_traits;
