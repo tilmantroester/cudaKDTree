@@ -65,9 +65,6 @@ namespace cukd {
     
     /*! returns ID of i'th found k-nearest data point */
     inline __device__ int   get_pointID(int i) const;
-    
-    /*! sort the candidates by distance */
-    inline __device__ void  sort();
 
     // Need this to read out results
     enum { num_k = k };
@@ -263,8 +260,6 @@ namespace cukd {
     inline __device__ float processCandidate(int candPrimID, float candDist2);
     inline __device__ float initialCullDist2() const;
     inline __device__ void  push(float dist, int pointID);
-
-    inline __device__ void  sort();
   };
 
   /*! candidate list (see above) that uses a heap to organize the
@@ -291,8 +286,6 @@ namespace cukd {
     inline __device__ float processCandidate(int candPrimID, float candDist2);
     inline __device__ float initialCullDist2() const;
     inline __device__ void  push(float dist, int pointID);
-
-    inline __device__ void  sort();
   };
 
   
@@ -408,13 +401,6 @@ namespace cukd {
   float HeapCandidateList<k>::maxRadius2() const
   { return decode_dist2(entry[0]); }
 
-  template<int k>
-  inline __device__
-  void HeapCandidateList<k>::sort()
-  {
-    thrust::sort(thrust::device, &entry[0], &entry[k]);
-  }
-
 
   // ------------------------------------------------------------------
   // FixedCandidateList
@@ -466,10 +452,6 @@ namespace cukd {
   inline __device__
   float FixedCandidateList<k>::maxRadius2() const
   { return decode_dist2(entry[k-1]); }
-
-  template<int k>
-  inline __device__
-  void FixedCandidateList<k>::sort() { /* Fixed list is already sorted. */ }
 
 
   namespace cct {
